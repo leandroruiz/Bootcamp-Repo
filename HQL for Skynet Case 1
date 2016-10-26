@@ -1,0 +1,99 @@
+use lruiz;
+
+create table site (col ARRAY<STRING>)
+ROW FORMAT DELIMITED
+COLLECTION ITEMS TERMINATED BY '\t';
+
+LOAD DATA LOCAL INPATH '/vagrant/data/site01-201410.txt' OVERWRITE INTO TABLE site;
+LOAD DATA LOCAL INPATH '/vagrant/data/site01-20141118.txt' INTO TABLE site;
+LOAD DATA LOCAL INPATH '/vagrant/data/site01-20141119.txt' INTO TABLE site;
+LOAD DATA LOCAL INPATH '/vagrant/data/site01-201411.txt' INTO TABLE site;
+LOAD DATA LOCAL INPATH '/vagrant/data/site02-201410.txt' INTO TABLE site;
+LOAD DATA LOCAL INPATH '/vagrant/data/site02-20141118.txt' INTO TABLE site;
+LOAD DATA LOCAL INPATH '/vagrant/data/site02-20141119.txt' INTO TABLE site;
+LOAD DATA LOCAL INPATH '/vagrant/data/site02-201411.txt' INTO TABLE site;
+
+create table acftref (
+CODE STRING,
+MFR STRING,
+MODEL STRING,
+TYPE_ACFT INT,
+TYPE_ENG STRING,
+AC_CAT INT,
+BUILD_CERT_IND INT,
+NO_ENGINT INT,
+NO_SEATS INT,
+AC_WEIGHT STRING,
+SPEED INT)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/vagrant/data/ACFTREF.txt' OVERWRITE INTO TABLE acftref;
+
+create table master (
+N_NUMBER STRING,
+SERIAL_NUMBER STRING,
+MFR_MDL_CODE STRING,
+ENG_MFR_MDL STRING,
+YEAR_MFR STRING,
+TYPE_REGISTRANT STRING,
+NAME STRING,
+STREET STRING,
+STREET2 STRING,
+CITY STRING,
+STATE STRING,
+ZIP_CODE STRING,
+REGION STRING,
+COUNTY STRING,
+COUNTRY STRING,
+LAST_ACTION_DATE STRING,
+CERT_ISSUE_DATE STRING,
+CERTIFICATION STRING,
+TYPE_AIRCRAFT STRING,
+TYPE_ENGINE STRING,
+STATUS_CODE STRING,
+MODE_S_CODE STRING,
+FRACT_OWNER STRING,
+AIR_WORTH_DATE STRING,
+OTHER_NAMES1 STRING,
+OTHER_NAMES2 STRING,
+OTHER_NAMES3 STRING,
+OTHER_NAMES4 STRING,
+OTHER_NAMES5 STRING,
+EXPIRATION_DATE STRING,
+UNIQUE_ID STRING,
+KIT_MFR STRING,
+KIT_MODEL STRING,
+MODE_S_CODE_HEX STRING)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/vagrant/data/MASTER.txt' OVERWRITE INTO TABLE master;
+
+with s as (select distinct col[3] as hexid from site)
+select
+substring (mfr, 1, 6) mfr2,
+case substring (mfr, 1, 6) 
+when 'BOEING' then substring (a.model, 1, 3)
+when 'AIRBUS' then substring (a.model, 1, 4)
+when 'BOMBAR' then substring (a.model, 1, 6)
+else a.model
+END,
+count(*)q,
+avg(no_seats) avg_seats,
+sum(case when s.hexid is null then 0 else 1 end) transp,
+sum(case when s.hexid is null then 1 else 0 end) no_transp
+from
+master m inner join acftref a
+on m.mfr_mdl_code = a.code
+left outer join s 
+on trim(m.mode_s_code_hex) = s.hexid
+where no_seats>50
+group by substring (mfr, 1, 6), case substring (mfr, 1, 6) 
+when 'BOEING' then substring (a.model, 1, 3)
+when 'AIRBUS' then substring (a.model, 1, 4)
+when 'BOMBAR' then substring (a.model, 1, 6)
+else a.model
+END
+having q>20
+order by q desc;
