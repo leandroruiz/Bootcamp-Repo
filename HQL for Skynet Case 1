@@ -70,7 +70,58 @@ FIELDS TERMINATED BY ',';
 
 LOAD DATA LOCAL INPATH '/vagrant/data/MASTER.txt' OVERWRITE INTO TABLE master;
 
-with s as (select distinct col[3] as hexid from site)
+create table dereg (
+N_NUMBER STRING,
+SERIAL_NUMBER STRING,
+MFR_MDL_CODE STRING,
+ENG_MFR_MDL STRING,
+YEAR_MFR STRING,
+TYPE_REGISTRANT STRING,
+NAME STRING,
+STREET STRING,
+STREET2 STRING,
+CITY STRING,
+STATE STRING,
+ZIP_CODE STRING,
+REGION STRING,
+COUNTY STRING,
+COUNTRY STRING,
+LAST_ACTION_DATE STRING,
+CERT_ISSUE_DATE STRING,
+CERTIFICATION STRING,
+TYPE_AIRCRAFT STRING,
+TYPE_ENGINE STRING,
+STATUS_CODE STRING,
+MODE_S_CODE STRING,
+FRACT_OWNER STRING,
+AIR_WORTH_DATE STRING,
+OTHER_NAMES1 STRING,
+OTHER_NAMES2 STRING,
+OTHER_NAMES3 STRING,
+OTHER_NAMES4 STRING,
+OTHER_NAMES5 STRING,
+EXPIRATION_DATE STRING,
+UNIQUE_ID STRING,
+KIT_MFR STRING,
+KIT_MODEL STRING,
+MODE_S_CODE_HEX STRING)
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/vagrant/data/DEREG.txt' OVERWRITE INTO TABLE dereg;
+
+create table t1 (
+mfr STRING,
+model STRING,
+name STRING,
+quantity INT,
+no_seats FLOAT,
+with_transp INT,
+without_transp INT
+);
+
+with s as (select distinct col[3] as hexid from site) 
+insert into table t1
 select
 substring (mfr, 1, 6) mfr2,
 case substring (mfr, 1, 6) 
@@ -79,6 +130,7 @@ when 'AIRBUS' then substring (a.model, 1, 4)
 when 'BOMBAR' then substring (a.model, 1, 6)
 else a.model
 END,
+m.name,
 count(*)q,
 avg(no_seats) avg_seats,
 sum(case when s.hexid is null then 0 else 1 end) transp,
@@ -88,12 +140,19 @@ master m inner join acftref a
 on m.mfr_mdl_code = a.code
 left outer join s 
 on trim(m.mode_s_code_hex) = s.hexid
-where no_seats>50
+where no_seats>50 and
+m.N_number not in (select n_number as n_number from dereg)
 group by substring (mfr, 1, 6), case substring (mfr, 1, 6) 
 when 'BOEING' then substring (a.model, 1, 3)
 when 'AIRBUS' then substring (a.model, 1, 4)
 when 'BOMBAR' then substring (a.model, 1, 6)
 else a.model
-END
+END,
+m.name
 having q>20
 order by q desc;
+
+ select mfr,model,sum(quantity) q,sum(with_transp) wt,sum(without_transp)wot
+ from t1
+ group by mfr,model
+ order by wot desc;
